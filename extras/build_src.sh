@@ -32,8 +32,6 @@ cd $CODEHOME/pandora_agents && tar zvcf $RPMHOME/SOURCES/pandorafms_agent_unix-$
 # Enterprise server
 #cd $PANDHOME_ENT/pandora_server/ && tar zcvf $RPMHOME/SOURCES/pandorafms_server_enterprise-$LOCAL_VERSION.tar.gz --exclude \.svn  PandoraFMS-Enterprise || exit 1
 
-cd $CODEHOME && tar zvcf $RPMHOME/SOURCES/wmic-4.0.0tp4.rbn.tar.gz --exclude \.svn --owner 0 --group 0 wmic-4.0.0tp4.rbn || exit 1
-
 # Create symlinks needed to build RPM packages
 if [ "$1" == "nightly" ]; then
 	ln -s $RPMHOME/SOURCES/pandorafms_console-$LOCAL_VERSION.tar.gz $RPMHOME/SOURCES/pandorafms_console-$VERSION.tar.gz || exit 1
