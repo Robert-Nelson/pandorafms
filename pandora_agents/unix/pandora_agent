@@ -606,9 +606,16 @@ sub write_broker_conf($){
 		if ($line =~ m/^\s*broker_agent/) {
 			next;
 		}
-		
+		# Skip dynamic broker definitions
+		elsif ($line =~ m/^\s*dynamic_broker/} {
+			next;
+		}
+		# Get rid of parents agent_name_cmd
+		elsif ($line =~ m/^\s*agent_name_cmd/} {
+			next;
+		}
 		# Change the agent name
-		if ($line =~ m/^\s*#*\s*agent_name\s+/) {
+		elsif ($line =~ m/^\s*#*\s*agent_name\s+/) {
 			$line = "agent_name $broker_agent\n";
 		}
 		# Change the logfile
@@ -679,7 +686,7 @@ sub read_config (;$) {
 			$Conf{$1} = $2;
 			
 			# Look for broker agents.
-			if ($1 eq 'broker_agent') {
+			if ($1 eq 'broker_agent' || $1 eq 'dynamic_broker') {
 				$BrokerEnabled = 1;
 			}
 
@@ -2174,6 +2181,44 @@ while (1) {
 			last;
 		} else {
 			push (@BrokerPid, $main_agent);
+		}
+	}
+
+	my @dynamic_brokers = read_config ('dynamic_broker');
+	foreach my $dynamic_broker_plugin (@dynamic_brokers) {
+		my @dynamic_agents = `$dynamic_broker_plugin`;
+		foreach my $dynamic_agent (@dynamic_agents) {
+			$main_agent = fork ();
+				
+			# Broker agent
+			if ($main_agent == 0) {
+			
+				# Set the configuration file
+				$ConfFile = "${dynamic_agent}.conf";
+				
+				# Log to a new file
+				stop_log ();
+				start_log ('quiet');
+					
+				# Read configuration file
+				$Conf{'parent_agent_name'} = $Conf{'agent_name'};
+				$Conf{'agent_name'} .= "/${dynamic_agent}";
+				%Macros = ();
+				@Modules = ();
+				%Collections = ();
+				read_config ();
+						
+				# Check for a new configuration
+				check_remote_config () unless ($Conf{'debug'} eq '1');
+					
+				# Check file collections
+				check_collections () unless ($Conf{'debug'} eq '1');
+						
+				# Execute
+				last;
+			} else {
+				push (@BrokerPid, $main_agent);
+			}
 		}
 	}
 
