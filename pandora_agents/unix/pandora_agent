@@ -606,14 +606,15 @@ sub write_broker_conf($){
 	my ($broker_agent) = @_;
 	my $content = '';
 
+	# I don't think the following should be copied either: proxy_*, secondary_* 
 	my %ignored_tokens = (
-		'broker_agent' => 1, 'dynamic_broker' => 1, 'agent_name_cmd' => 1
+		'broker_agent' => 1, 'dynamic_broker' => 1, 'agent_name_cmd' => 1, 'udp_server' => 1, 'cron_mode' => 1
 	);
 
 	open (CONF_FILE, "$ConfDir/$ConfFile") or error ("Could not open file '$ConfDir/$ConfFile': $!.");
 	open (BROKER_FILE, ">$ConfDir/${broker_agent}.conf") or error ("Could not write configuration file: $!");
 
-	while (my $line = <CONF_FILE>){
+	while (my $line = <CONF_FILE>) {
 
 		my ( $token ) = $line =~ m/^\s*(\S+)(\s.*)?$/;
 		# Skip tokens which should not be copied to broker configuration
@@ -655,19 +656,6 @@ sub read_config (;$) {
 		# Replace CRLF with LF
 		$line =~ s/\r\n/\n/g;
 		
-		# Store the custom fields
-		
-		if (($line =~ m/^(custom_field\d+_name)\s+(.*)/) or ($line =~ m/^(custom_field\d+_value)\s+(.*)/)) {
-			$Customfields{$1} = $2;
-			next;
-		}
-
-		# Save global macros
-		if ($line =~ m/^macro(\S+)\s+(.*)/) {
-			$Macros{$1} = $2;
-			next;
-		}
-		
 		# Token search
 		if (defined ($token)) {
 			if ($line =~ /^\s*(\S+)\s+(.*)$/ && $1 eq $token) {
@@ -683,6 +671,20 @@ sub read_config (;$) {
 			}
 			next;
 		}
+
+		# Store the custom fields
+		
+		if (($line =~ m/^(custom_field\d+_name)\s+(.*)/) or ($line =~ m/^(custom_field\d+_value)\s+(.*)/)) {
+			$Customfields{$1} = $2;
+			next;
+		}
+
+		# Save global macros
+		if ($line =~ m/^macro(\S+)\s+(.*)/) {
+			$Macros{$1} = $2;
+			next;
+		}
+		
 		next if ($line =~ /^module\s*\w*/);
 
 		#Configuration token
