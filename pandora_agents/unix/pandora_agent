@@ -515,6 +515,9 @@ sub parse_conf_modules($) {
 				# Make the module run the first time
 				$module->{'counter'} = $module->{'intensive_interval'};
 							
+				# Replace macros
+				replace_macros ($module);
+
 				push (@Modules, {%{$module}});
 			} else {
 				$module->{'func'} = \&module_plugin;
@@ -1208,6 +1211,12 @@ sub guess_os_version ($) {
 	# Linux
 	if ($os eq 'linux') {
 		$os_version = `lsb_release -sd 2>$DevNull`;
+		if ($os_version) {
+			$os_version =~ s/^\s*\"(.*)\"\s*$/$1/;
+		} elsif (-f '/etc/redhat-release') {
+			$os_version = `head -1 /etc/redhat-release`;
+		}
+		$os_version =~ s/^\s*|\s*$//g;
 	# AIX
 	} elsif ($os eq 'aix') {
 		$os_version = "$2.$1" if (`uname -rv` =~ /\s*(\d)\s+(\d)\s*/);
