@@ -4011,8 +4011,9 @@ function reporting_render_report_html_item ($content, $table, $report, $mini = f
 				reporting_enterprise_sla_monthly($mini, $content, $report, $table, $item_title);
 			break;
 		case 'SLA_services':
-			if (function_exists("reporting_enterprise_sla_services"))
+			if (function_exists("reporting_enterprise_sla_services")) {
 				reporting_enterprise_sla_services($mini, $content, $report, $table, $item_title);
+			}
 			break;
 		case 3:
 		case 'SLA':
@@ -4055,6 +4056,7 @@ function reporting_render_report_html_item ($content, $table, $report, $mini = f
 				break;
 			}
 			elseif ($show_table) {
+				$table1 = new stdClass();
 				$table1->width = '99%';
 				$table1->data = array ();
 				$table1->head = array ();
@@ -4412,6 +4414,7 @@ function reporting_render_report_html_item ($content, $table, $report, $mini = f
 			
 			// Slice graphs calculation
 			if ($show_graphs && !empty($slas)) {
+				$tableslice = new stdClass();
 				$tableslice->width = '99%';
 				$tableslice->style[0] = 'text-align: right';
 				$tableslice->data = array ();
