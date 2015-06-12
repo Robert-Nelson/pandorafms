@@ -609,7 +609,7 @@ sub write_broker_conf($){
 	my ($broker_agent) = @_;
 	my $content = '';
 
-	# I don't think the following should be copied either: proxy_*, secondary_* 
+	# I don't think the following should be copied either: proxy_*
 	my %ignored_tokens = (
 		'broker_agent' => 1, 'dynamic_broker' => 1, 'agent_name_cmd' => 1, 'udp_server' => 1, 'cron_mode' => 1
 	);
