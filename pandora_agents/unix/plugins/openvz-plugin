@@ -1,0 +1,120 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use JSON;
+
+sub usage {
+	print STDERR "usage: openvz-plugin <container id> [<module group>]\n";
+}
+
+if ($#ARGV < 0) {
+	usage();
+	exit 1;
+}
+
+my $ctid = $ARGV[0];
+my $group = $ARGV[1];
+$group = 'OpenVZ Counters' unless defined $group;
+
+my $result = `vzlist -j $ARGV[0]`;
+#my $result = `cat /tmp/vzlist.out`;
+
+my $veinfo = @{decode_json $result}[0];
+
+my %ubcinfo = (
+	'numproc' => [ 1, '', 'Maximum number of processes and kernel-level threads.'],
+	'numtcpsock' => [ 1, '', 'Maximum number of TCP sockets. This parameter limits the number of TCP connections and, thus, the number of clients the server application can handle in parallel.'],
+	'numothersock' => [ 1, '', 'Maximum number of non-TCP sockets (local sockets, UDP and other types of sockets].'],
+	'vmguarpages' => [ 1, 'Pages', 'Memory allocation guarantee. This parameter controls how much memory is available to a container. The barrier is the amount of memory that container’s applications are guaranteed to be able to allocate.'],
+	'kmemsize' => [ 1, 'Bytes', 'Maximum amount of kernel memory used. This parameter is related to numproc. Each process consumes certain amount of kernel memory - 16 KB at least, 30-50 KB typically. Very large processes may consume a bit more.'],
+	'tcpsndbuf' => [ 1, 'Bytes', 'Maximum size of TCP send buffers.'],
+	'tcprcvbuf' => [ 1, 'Bytes', 'Maximum size of TCP receive buffers.'],
+	'othersockbuf' => [ 1, 'Bytes', 'Maximum size of other (non-TCP] socket send buffers.'],
+	'dgramrcvbuf' => [ 1, 'Bytes', 'Maximum size of other (non-TCP] socket receive buffers.'],
+	'oomguarpages' => [ 1, 'Pages', 'Guarantees against OOM kill.'],
+	'lockedpages' => [ 1, 'Pages', 'Maximum number of pages acquired by mlock(2].'],
+	'privvmpages' => [ 1, 'Pages', 'Allows controlling the amount of memory allocated by the applications.  For shared (mapped as MAP_SHARED] pages, each container really using a memory page is charged for the fraction of the page (depending on the number of others  using  it].  For  "potentially  private" pages (mapped  as  MAP_PRIVATE), container is charged either for a fraction of the size or for the full size if the allocated address space. In the latter case, the physical pages associated with the allocated address space may be in memory, in swap or not physically allocated yet.'],
+	'shmpages' => [ 1, 'Pages', 'Maximum IPC SHM segment size.'],
+	'numfile' => [ 1, '', 'Maximum number of open files.'],
+	'numflock' => [ 1, '', 'Maximum number of file locks.'],
+	'numpty' => [ 1, '', 'Number of pseudo-terminals (PTY].'],
+	'numsiginfo' => [ 1, '', 'Number of siginfo structures.'],
+	'dcachesize' => [ 0, 'Bytes', 'Maximum size of filesystem-related caches, such as directory entry and inode caches.'],
+	'numiptent' => [ 1, '', 'Number of iptables (netfilter] entries.'],
+	'physpages' => [ 1, 'Pages', 'On VSwap-enabled kernels, this limits the amount of physical memory (RAM] available to a container. For older kernels, this is an accounting-only parameter, showing the usage of RAM by this container.'],
+	'swappages' => [ 1, 'Pages', 'For VSwap-enabled kernels this limits the amount of swap space available to a container. For older kernels, the limit is used to show a total amount of swap space available inside the container.'],
+	'diskspace' => [ 1, 'Kilobytes'],
+	'diskinodes' => [ 1, '', 'Sets soft and hard disk quota limits, in i-nodes.']
+);
+
+foreach my $key (keys %$veinfo) {
+	if (ref($veinfo->{$key}) eq 'HASH') {
+		my $value;
+		my $critical_min;
+		my $maximum;
+		my $failcnt;
+		my $maxheld;
+
+		if (defined $veinfo->{$key}->{'held'}) {
+			$value = $veinfo->{$key}->{'held'};
+			my $barrier = $veinfo->{$key}->{'barrier'};
+			$critical_min = $veinfo->{$key}->{'barrier'} if $barrier != 0 && $barrier != 9223372036854775807;
+			my $limit = $veinfo->{$key}->{'limit'};
+			#$maximum = $veinfo->{$key}->{'limit'} if $limit != 0 && $limit != 9223372036854775807;
+			$failcnt = $veinfo->{$key}->{'failcnt'};
+			$maxheld = $veinfo->{$key}->{'maxheld'};
+		} elsif (defined $veinfo->{$key}->{'usage'}) {
+			$value = $veinfo->{$key}->{'usage'};
+			$critical_min = $veinfo->{$key}->{'softlimit'};
+			$maximum = $veinfo->{$key}->{'hardlimit'};
+		} else {
+			next;
+		}
+		my $ubc_entry = $ubcinfo{$key};
+		my $alerts = 1;
+		my $units;
+		my $description;
+		if (defined $ubc_entry) {
+			$alerts = @$ubc_entry[0];
+			$units = @$ubc_entry[1];
+			$description = @$ubc_entry[2];
+		} else {
+			print STDERR "$key not in ubcinfo\n";
+		}
+		print "<module>\n";
+		print "	<name><![CDATA[$key]]></name>\n";
+		print "	<description><![CDATA[$description]]></description>\n" if defined $description;
+		print "	<type><![CDATA[generic_data]]></type>\n";
+		print "	<module_group><![CDATA[$group]]></module_group>\n";
+		print "	<data><![CDATA[$value]]></data>\n";
+		print "	<unit><![CDATA[$units]]></unit>\n" if defined $units;
+		print "	<min>0</min>\n" if defined $maximum;
+		print "	<max>$maximum</max>\n" if defined $maximum;
+
+		if ($alerts && defined $critical_min) {
+			print "	<min_warning>".int($critical_min - ($critical_min / 10))."</min_warning>\n";
+			print "	<max_warning>$critical_min</max_warning>\n";
+			print "	<min_critical>$critical_min</min_critical>\n";
+		}
+		print "</module>\n";
+		if (defined $maxheld) {
+			print "<module>\n";
+			print "	<name><![CDATA[$key: High Water Mark]]></name>\n";
+			print "	<type><![CDATA[generic_data]]></type>\n";
+			print "	<module_group><![CDATA[$group]]></module_group>\n";
+			print "	<data><![CDATA[$maxheld]]></data>\n";
+			print "	<unit><![CDATA[$units]]></unit>\n" if defined $units;
+			print "</module>\n";
+		}
+		if (defined $failcnt) {
+			print "<module>\n";
+			print "	<name><![CDATA[$key: Failures]]></name>\n";
+			print "	<type><![CDATA[generic_data_inc]]></type>\n";
+			print "	<module_group><![CDATA[$group]]></module_group>\n";
+			print "	<data><![CDATA[$failcnt]]></data>\n";
+			print "	<min_critical>1</min_critical>\n";
+			print "</module>\n";
+		}
+	}
+}

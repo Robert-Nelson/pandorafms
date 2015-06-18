@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+sub usage {
+	print STDERR "usage: openvz-dynamic <agent group> <module group>\n";
+}
+
+if ($#ARGV < 1) {
+	usage();
+	exit 1;
+}
+
+my $agent_group = $ARGV[0];
+my $module_group = $ARGV[1];
+
+my @velist = `vzlist -a -o ctid,hostname,ip -H -t`;
+
+foreach my $line (@velist) {
+	chomp $line;
+	my (undef, $ctid, $host, $address) = split(/\s+/, $line, 4);
+
+	my $config_file = "$ENV{'PANDORA_HOME'}/$ctid.conf";
+	open (NEW_CONF_FILE, ">$config_file") or die("Couldn't open config file $config_file for writing!");
+	print NEW_CONF_FILE "agent_name ${host}\n" if defined $host and $host ne '';
+	print NEW_CONF_FILE "group ${agent_group}\n";
+	print NEW_CONF_FILE "address ".join(',', split(/\s+/,${address}))."\n" if defined $address and $address ne '';
+	print NEW_CONF_FILE "macro__CTID__ $ctid\n";
+	print NEW_CONF_FILE "module_plugin openvz-plugin __CTID__ \"${module_group}\"\n";
+	if (-f "$ENV{'PANDORA_HOME'}/$ctid-openvz-modules.conf") {
+		print NEW_CONF_FILE "include $ENV{'PANDORA_HOME'}/$ctid-openvz-modules.conf\n";
+	}
+	if (-f "$ENV{'PANDORA_HOME'}/openvz-modules.conf") {
+		print NEW_CONF_FILE "include $ENV{'PANDORA_HOME'}/openvz-modules.conf\n";
+	}
+	close NEW_CONF_FILE;
+	print "$ctid\n";
+}
